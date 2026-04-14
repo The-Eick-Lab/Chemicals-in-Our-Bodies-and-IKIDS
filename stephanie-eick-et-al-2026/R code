@@ -1,0 +1,1841 @@
+---
+title: Aromatic Amines
+output:
+  html_document:
+    theme: flatly
+    code_folding: hide
+    toc: true
+    toc_depth: 5
+    toc_float: true
+  word_document:
+    toc: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+
+
+
+```{css, echo=FALSE}
+h2 {
+   text-align: center;
+}
+
+pre {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 400px;
+}
+
+.scroll-400 {
+  max-height: 100px;
+  overflow-y: auto;
+  background-color: inherit;
+}
+```
+
+## Set up {.tabset}
+
+### Load packages
+```{r class.output="scroll-400", warning = F, message = F}
+#### Load packages
+
+library(tidyverse)
+library(gt)
+library(gtsummary)
+library(broom)
+library(mgcv)
+library(gtExtras)
+library(corrplot)
+library(ggthemes)
+library(ggh4x)
+library(cowplot)
+library(bkmr)
+library(readxl)
+library(ggpubr)
+```
+
+
+
+```{r class.output="scroll-400", warning = F, message = F}
+#### Labels for tables and plots 
+
+# VRM
+vrm_label <- c("Average Run Duration", "Time to Reach Familiarization", "Shift Rate", "Novelty Preference")
+names(vrm_label) <- c("avg.run.duration.comb.faces_b1_b2", "trial.duration.faces_b1_b2", "shift.rate.faces_b1_b2", "novelty.pref.faces_b1_b2")
+
+# aromatic amines
+amines_label_log <- c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")
+names(amines_label_log) <- c( "sumaa_log", "ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")
+amines_label_log2 <- c("∑ AA", "analine", "cotinine", "cotinine (binary)", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")
+
+# amines label table 
+amines_label <- c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")
+names(amines_label) <- c( "sumaa", "ANI", "COTT", "OMTD", "CA4", "OANSD", "MDA44")
+
+# set global plot themes
+theme_set(theme_bw() +
+  theme(title = element_text(size = 15, color = "grey30"),
+        axis.title.x = element_text(size = 15, color = "grey30"),
+        axis.title.y = element_text(size = 15, color = "grey30"),
+        axis.text.x = element_text(size = 15, color = "grey30"),
+        axis.text.y = element_text(size = 15, color = "grey30"),
+        panel.grid = element_blank(),
+        strip.text = element_text(size = 15, color = "grey30"),
+        strip.background = element_blank(), 
+        panel.border = element_rect(color = "black", fill = NA, size = 1),
+        legend.position = "bottom",
+        legend.key.size = unit(3, "cm"),
+        legend.text = element_text(size = 15, color = "grey30"))) 
+```
+
+
+## Descriptive Statistics 
+
+### Table 1: Demographics 
+
+Note: less than 1% of the population are smokers, so not we did not included the variable here
+
+```{r  class.output="scroll-400", warning = F, message = F}
+#### Build summary function 
+dist_table_demo <- function(df){
+
+# recode variables
+table <- df %>%
+  mutate(sex = recode(sex,
+                      "1" = "Male",
+                      "2" = "Female"),
+         mat_educ = recode(mat_educ,
+                      "1" = "Less than high school/high school/some college",
+                      "2" = "College degree",
+                      "3" = "Graduate degree"),
+         marital = recode(marital,
+                      "1" = "Married/living with a partner",
+                      "2" = "Single"),
+         mat_race_eth = recode(mat_race_eth,
+                               "1" = "White",
+                               "2" = "Black or Multi-racial",
+                               "3" = "Asian, native hawaiian, pacific islander, american indian, alaska native",
+                               "4" = "Hispanic"),
+         parity = recode(parity,
+                         "0" = "No prior births",
+                         "1" = "1 or more prior births")) %>%
+# rename variables
+  rename("Age" = mat_age,
+         "Early Pregnancy Body-Mass-Index" = ppbmi, 
+         "Marital Status" = marital,
+         "Education" = mat_educ,
+         "Race/Ethnicity" = mat_race_eth,
+         "Parity" = parity,
+         "Shift Rate" = shift.rate.faces_b1_b2,
+         "Child Age" = age.vrm.test,
+         "Sex" = sex,
+         "Novelty Preference" = novelty.pref.faces_b1_b2, 
+         "Time to Reach Familiarization" = trial.duration.faces_b1_b2,
+         "Average Run Duration" = avg.run.duration.comb.faces_b1_b2) %>%
+  
+    select(Age, `Early Pregnancy Body-Mass-Index`, `Marital Status`, Education, `Race/Ethnicity`, Parity, Sex, `Child Age`, `Shift Rate`,`Novelty Preference`, `Time to Reach Familiarization`,  `Average Run Duration`)
+
+# table    
+  tbl_summary(table, type = all_dichotomous() ~ "categorical", statistic = all_continuous() ~ "{mean} ({sd})", digits = all_continuous() ~ 2, missing_text = "Missing") %>%
+   modify_header(label = "**Demographic**") %>%
+   bold_labels()
+
+}
+
+### ciob 
+dist_table_demo_ciob <- dist_table_demo(df = amines_vrm_ciob)
+
+### ikids
+dist_table_demo_ikids <- dist_table_demo(df = amines_vrm_ikids)
+
+### pooled
+dist_table_demo_pooled <- dist_table_demo(df = amines_vrm)
+
+# table
+tbl_merge(tbls = list(dist_table_demo_ciob, dist_table_demo_ikids, dist_table_demo_pooled), tab_spanner = c("CIOB", "IKIDS", "Pooled"))
+```
+
+#### Table 1: Visual Recognition Memory 
+
+
+```{r class.output="scroll-400", warning = F, message = F}
+#### Build function to calculate distributions
+
+dist.func.arith <- function(x) {
+  c(
+    mean = round(mean(x, na.rm = TRUE), 2), 
+    sd = round(sd(x, na.rm = TRUE), 2),
+    min = round(min(x, na.rm = TRUE), 2),
+    q1 = round(quantile(x, 0.25, na.rm = TRUE), 2),
+    med = round(median(x, na.rm = TRUE), 2),
+    q3 = round(quantile(x, 0.75, na.rm = TRUE), 2), 
+    max = round(max(x, na.rm = TRUE), 2)
+  )
+}
+
+# CIOB
+
+# format
+dist_eye_ciob <- amines_vrm_ciob %>%
+  select(novelty.pref.faces_b1_b2, trial.duration.faces_b1_b2, avg.run.duration.comb.faces_b1_b2, shift.rate.faces_b1_b2)
+
+# apply
+dist_eye_ciob <- map_dfr(dist_eye_ciob, dist.func.arith, .id = "vrm") %>%
+  mutate(cohort = "CIOB")
+
+# IKIDS
+
+# format
+dist_eye_ikids <- amines_vrm_ikids %>%
+  select(novelty.pref.faces_b1_b2, trial.duration.faces_b1_b2, avg.run.duration.comb.faces_b1_b2, shift.rate.faces_b1_b2)
+
+# apply
+dist_eye_ikids <- map_dfr(dist_eye_ikids, dist.func.arith, .id = "vrm") %>%
+  mutate(cohort = "IKIDS")
+
+# Pooled
+
+# format
+dist_eye_pooled <- amines_vrm %>%
+  select(novelty.pref.faces_b1_b2, trial.duration.faces_b1_b2, avg.run.duration.comb.faces_b1_b2, shift.rate.faces_b1_b2)
+
+dist_eye_pooled <- map_dfr(dist_eye_pooled, dist.func.arith, .id = "vrm") %>%
+  mutate(cohort = "Pooled")
+
+#table 
+dist_vrm <- bind_rows(dist_eye_ciob, dist_eye_ikids, dist_eye_pooled) %>%
+  mutate(vrm = recode(vrm, !!!vrm_label)) %>%
+  gt(groupname_col = "vrm", rowname_col = "cohort") %>%
+  row_group_order(groups = c("Shift Rate", "Novelty Preference","Average Run Duration", "Time to Reach Familiarization")) %>%
+  cols_label(mean = "Mean", sd = "SD", min = "Minimum", `q1.25%` = "25%", med = "Median", `q3.75%` = "75%", max = "Maximum") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+dist_vrm
+```
+
+
+### Table S1: Demographics in full cohort
+
+
+```{r  class.output="scroll-400", warning = F, message = F}
+
+dist_table_demo <- function(df){
+
+# recode variables
+table <- df %>%
+  mutate(mat_educ = recode(mat_educ,
+                      "1" = "Less than high school/high school/some college",
+                      "2" = "College degree",
+                      "3" = "Graduate degree"),
+         marital = recode(marital,
+                      "1" = "Married/living with a partner",
+                      "2" = "Single"),
+         mat_race_eth = recode(mat_race_eth,
+                               "1" = "White",
+                               "2" = "Black or Multi-racial",
+                               "3" = "Asian, native hawaiian, pacific islander, american indian, alaska native",
+                               "4" = "Hispanic"),
+         parity = recode(parity,
+                         "0" = "No prior births",
+                         "1" = "1 or more prior births")) %>%
+# rename variables
+  rename("Age" = mat_age,
+         "Early Pregnancy Body-Mass-Index" = ppbmi, 
+         "Marital Status" = marital,
+         "Education" = mat_educ,
+         "Race/Ethnicity" = mat_race_eth,
+         "Parity" = parity) %>%
+  
+    select(Age, `Early Pregnancy Body-Mass-Index`, `Marital Status`, Education, `Race/Ethnicity`, Parity)
+
+# table    
+  tbl_summary(table, type = all_dichotomous() ~ "categorical", statistic = all_continuous() ~ "{mean} ({sd})", digits = all_continuous() ~ 2, missing_text = "Missing") %>%
+   modify_header(label = "**Demographic**") %>%
+   bold_labels()
+
+}
+
+dist_table_demo_ciob <- dist_table_demo(df = demo[which(demo$study=='CIOB'),])
+dist_table_demo_ikids <- dist_table_demo(df = demo[which(demo$study=='IKIDS'),])
+dist_table_demo_full <- dist_table_demo(df = demo)
+tbl_merge(tbls = list(dist_table_demo_ciob, dist_table_demo_ikids, dist_table_demo_full), tab_spanner = c("CIOB", "IKIDS", "Pooled"))
+
+```
+
+
+## Table 2: Limit of Detection {.tabset}
+
+### CIOB 
+
+above 50% limit of detection 
+
+```{r  class.output="scroll-400", warning = F, message = F}
+#### CIOB
+
+lod_ciob <- amines_ciob_full %>%
+  # select columns
+  dplyr::select(PANSD_comment, OANSD_comment, DMA24_comment, PCD_comment, PTD_comment, OMTD_comment, CA4_comment, CA3_comment, TMA245_comment, DMBD33_comment, EA4_comment, DCA34_comment, MDA44_comment, PLD13_comment, CTD4_comment, OD44_comment, AA4_comment, MTD44_comment, MBCA44_comment, ABP2_comment, ABP4_comment, BD_comment, ODAD_comment, TD44_comment, DAT34_comment, DAT24_comment, DAT26_comment, DAAS34_DAAS24_comment, ABPA33_comment, DMBPDA_comment, AMOBZT2_comment, BPCH11_comment, DMA26_comment, NICT_comment, COTT_comment, TMA246_comment, ANI_comment, NA2_comment) %>%
+  # get percentage of values that are vaild (0)
+  summarise(across(everything(), ~ round(100 * sum(.x != 37, na.rm = TRUE) / length(.x), 0))) %>% 
+            pivot_longer(cols = everything(), names_to = "amine", values_to = "percent_above_lod") %>%
+  # format amines
+  mutate(amine = str_sub(amine, 0 , -9)) %>%
+  gt() %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      rows = percent_above_lod > 50)) %>%
+  gt_theme_538() %>%
+  cols_label(amine = "Aromatic Amine", percent_above_lod = "Percent Above Limit of Detection") %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+lod_ciob
+```
+
+### IKIDS 
+
+above 50% limit of detection 
+
+```{r  class.output="scroll-400", warning = F, message = F}
+#### IKIDS 
+
+lod_ikids <- amines_ikids_full %>% 
+  # match "_comment" values to ciob
+     mutate(across(ends_with("_comment"), ~ case_when(
+    . == "Value less than LOD" ~ 37,
+    . == "valid measurement"   ~ 0))) %>%
+# take only PC timepoint 
+  filter(timepoint == "PC") %>% 
+  # select columns
+  dplyr::select(PANSD_comment, OANSD_comment, DMA24_comment, PCD_comment, PTD_comment, OMTD_comment, CA4_comment, CA3_comment, TMA245_comment, DMBD33_comment, EA4_comment, DCA34_comment, MDA44_comment, PLD13_comment, CTD4_comment, OD44_comment, AA4_comment, MTD44_comment, MBCA44_comment, ABP2_comment, ABP4_comment, BD_comment, ODAD_comment, TD44_comment, DAT34_comment, DAT24_comment, DAT26_comment, DAAS34_DAAS24_comment, ABPA33_comment, DMBPDA_comment, AMOBZT2_comment, BPCH11_comment, DMA26_comment, NICT_comment, COTT_comment, TMA246_comment, ANI_comment, NA2_comment) %>%
+  # get percentage of values that are vaild (0)
+  summarise(across(everything(), ~ round(100 * sum(.x != 37, na.rm = TRUE) / length(.x), 0))) %>% 
+            pivot_longer(cols = everything(), names_to = "amine", values_to = "percent_above_lod") %>%
+  # format amines
+  mutate(amine = str_sub(amine, 0 , -9)) %>%
+  gt() %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      rows = percent_above_lod > 50)) %>%
+  gt_theme_538() %>%
+  cols_label(amine = "Aromatic Amine", percent_above_lod = "Percent Above Limit of Detection") %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+lod_ikids
+```
+
+
+### Table 2: Aromatic Amines Distributions
+
+
+```{r class.output="scroll-400", warning = F, message = F}
+#### Build distribution function 
+dist.func.geo <- function(x) {
+  c(
+    geomean = round(exp(mean(log(x), na.rm = TRUE)), 2), 
+    geosd = round(exp(sd(log(x), na.rm = TRUE)), 2),
+    min = round(min(x, na.rm = TRUE), 2),
+    q1 = round(quantile(x, 0.25, na.rm = TRUE), 2),
+    med = round(median(x, na.rm = TRUE), 2),
+    q3 = round(quantile(x, 0.75, na.rm = TRUE), 2), 
+    max = round(max(x, na.rm = TRUE), 2)
+  )
+}
+
+# CIOB
+
+# format
+dist_amines_ciob <- amines_vrm_ciob %>%
+  select(sumaa, ANI, COTT, OMTD, CA4, OANSD, MDA44) 
+
+# apply
+dist_amines_ciob <- map_dfr(dist_amines_ciob, dist.func.geo, .id = "amine") %>%
+  mutate(cohort = "CIOB")
+
+
+# IKIDS
+
+# format 
+dist_amines_ikids <- amines_vrm_ikids %>%
+  select(sumaa, ANI, COTT, OMTD, CA4, OANSD, MDA44)
+
+# apply
+dist_amines_ikids <- map_dfr(dist_amines_ikids, dist.func.geo, .id = "amine") %>%
+  mutate(cohort = "IKIDS")
+
+
+# Pooled
+
+# format
+dist_amines_pooled <- amines_vrm %>%
+  select(sumaa, ANI, COTT, OMTD, CA4, OANSD, MDA44) 
+
+# apply
+dist_amines_pooled <- map_dfr(dist_amines_pooled, dist.func.geo, .id = "amine") %>%
+  mutate(cohort = "pooled")
+
+# table
+dist_amines <- bind_rows(dist_amines_ciob, dist_amines_ikids, dist_amines_pooled) %>%
+  mutate(amine = recode(amine, !!!amines_label)) %>%
+  gt(groupname_col = "amine", rowname_col = "cohort") %>%
+  cols_label(geomean = "Geomertic Mean", geosd = "Geometric SD", min = "Minimum", `q1.25%` = "25%", med = "Median", `q3.75%` = "75%", max = "Maximum", amine = "Aromatic Amine") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+dist_amines
+```
+
+
+### Table S2: Aromatic Amines: distributions across demographics
+
+Geometric mean and geometric standard deviation
+
+(reorder columns here) 
+
+```{r class.output="scroll-400", warning = F, message = F}
+#### Calculate geometric mean and geometric sd across grouped variables
+
+bde_names <- c("sumaa", "ANI", "COTT", "OMTD", "CA4", "OANSD", "MDA44")
+demo_names <- c("marital", "mat_educ", "mat_race_eth", "parity")
+
+# format 
+dist_amines_demo <- amines_vrm %>%
+    mutate(sex = recode(sex,
+                      "1" = "Male",
+                      "2" = "Female"),
+         mat_educ = recode(mat_educ,
+                      "1" = "<College Degree",
+                      "2" = "College degree",
+                      "3" = "Graduate degre"),
+         marital = recode(marital,
+                      "1" = "Married/living together",
+                      "2" = "Single"),
+         mat_race_eth = recode(mat_race_eth,
+                               "1" = "White",
+                               "2" = "Black/Multi racial",
+                               "3" = "Asian, native hawaiian, pacific islander, american indian, alaska native",
+                               "4" = "Hispanic"),
+         parity = recode(parity,
+                         "0" = "No prior births",
+                         "1" = "1 or more prior births")) %>%
+  select(all_of(bde_names), all_of(demo_names)) %>%
+  pivot_longer(cols = all_of(demo_names), names_to = "stress_var", values_to = "stress_group") %>%
+  pivot_longer(cols = all_of(bde_names), names_to = "bde", values_to = "value") %>%
+  group_by(stress_var, stress_group, bde) %>%
+  drop_na() %>%
+  summarise(
+    geomean = round(exp(mean(log(value), na.rm = TRUE)), 2),
+    geosd   = round(exp(sd(log(value), na.rm = TRUE)), 2)) %>%
+  mutate(geomean_sd = paste0(geomean, " (", geosd, ")"),
+        stress_var = recode(stress_var,
+         sex = "Sex",
+         marital = "Marital Status",
+         mat_educ = "Education",
+         mat_race_eth = "Race/Ethnicity",
+         parity = "Parity")) %>%
+  select(stress_var, stress_group, bde, geomean_sd) %>%
+  pivot_wider(names_from = bde, values_from = geomean_sd) %>%
+  gt(rowname_col = "stress_group", groupname_col = "stress_var") %>%
+  cols_label(stress_group = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+
+dist_amines_demo
+```
+
+
+### Figure S1. Spearman Correlation 
+ 
+
+```{r warning = F, message = F}
+#### Calculate spearman correlations 
+
+# select 
+cor_amines <- amines_vrm %>%
+  select(sumaa_log, ANI_log, COTT_log, OMTD_log, CA4_log, OANSD_log, MDA44_log)
+
+# label 
+colnames(cor_amines) <- c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")
+
+# get correlation
+cor_amines <- cor(cor_amines, method = "spearman")
+
+# plot 
+corrplot(cor_amines, method = "color", tl.col = "grey30", col = COL2('RdBu'), addCoef.col = 'grey30')
+```
+
+## Figure 1 & Table S3-S4: Linear Regression  {.tabset}
+
+
+
+$ ∑AA = ANI/93.13 + COTT/176.21 + COTT/176.21 + CA4/127.57 + OANSD/123.15 + MDA44/198.26 = MTD/107.15 $
+
+### Pooled 
+
+adjusted: sex + set + cohort + age.vrm.test + maternal age + maternal education + bmi + urine_sp_gravity
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 15, fig.width = 15}
+#### Pooled regression
+
+## Add binary indicator for cotinine
+amines_vrm$COTT_binary<-ifelse(amines_vrm$COTT_comment==0,0, ifelse(amines_vrm$COTT_comment>1, 1, NA))
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "COTT_binary", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + sex  + cohort + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_pooled <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("sex2", "cohortIKIDS","age.vrm.test", "mat_age", "mat_educ2", "mat_educ3","ppbmi","urine_sp_gravity",  "(Intercept)")) %>%
+  mutate(cohort = "pooled")
+
+# format for plotting, removing the binary cotinine measure 
+reg_pooled2<-reg_pooled[which(reg_pooled$term!="COTT_binary"),]
+
+# build rectangles for shading 
+term_rects <- reg_pooled2 %>%
+  distinct(term) %>%
+  arrange(term) %>%
+  mutate(
+    term_index = row_number(),
+    fill_color = if_else(term_index %% 2 == 0, "grey98", "grey92")
+  )
+
+reg_pooled2 <- reg_pooled2 %>%
+  left_join(term_rects, by = "term") 
+    
+# factor
+reg_pooled2$outcome <- factor(reg_pooled2$outcome, levels = c("shift.rate.faces_b1_b2", "novelty.pref.faces_b1_b2","avg.run.duration.comb.faces_b1_b2", "trial.duration.faces_b1_b2"))
+
+reg_pooled2$term <- factor(reg_pooled2$term, levels = rev(c("sumaa_log", "ANI_log","COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")))
+
+
+# plot
+ggplot(reg_pooled2, aes(estimate, term)) + 
+  geom_rect(
+    data = term_rects,
+    aes(ymin = term_index - 0.5, ymax = term_index + 0.5,
+        xmin = -Inf, xmax = Inf, fill = fill_color),
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) +
+  scale_fill_identity() +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), 
+                  color = "grey20", size = 1, linewidth = 1, 
+                  position = position_dodge(width = 1)) + 
+  facet_wrap(~outcome, scales = "free", ncol = 2, labeller = labeller(outcome = vrm_label)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(y = "   ", x = "ß (95% Confidence Interval)") +
+  facetted_pos_scales(
+    x = list(
+      scale_x_continuous(limits = c(-0.04, 0.04), breaks = c(-0.04, -0.02, 0, 0.02, 0.04)),
+      scale_x_continuous(limits = c(-0.02, 0.02), breaks = c(-0.02, -0.01, 0, 0.01, 0.02)),
+      scale_x_continuous(limits = c(-0.6, 0.6), breaks = c(-0.6, -0.3, 0, 0.3, 0.6)),
+      scale_x_continuous(limits = c(-16, 16), breaks = c(-16, -12,-8, -4, 0, 4, 8, 12, 16))
+    )
+  ) +    
+ labs(y = "", x = "ß (95% Confidence Interval)") +
+    scale_y_discrete(labels = amines_label_log)
+
+```
+
+### CIOB
+
+adjusted: sex + age.vrm.test + maternal age + maternal education + bmi + urine_sp_gravity
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 20, fig.width = 15}
+#### CIOB regression 
+
+# Re-code eduation to be binary for CIOB due to sparse data concerns
+amines_vrm_ciob$mat_educ_binary <- fct_collapse(amines_vrm_ciob$mat_educ, "1" = c("1", "2"), "2" = "3")
+
+## Add binary indicator for cotinine
+amines_vrm_ciob$COTT_binary<-ifelse(amines_vrm_ciob$COTT_comment==0,0, ifelse(amines_vrm_ciob$COTT_comment>1, 1, NA))
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "COTT_binary", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + sex  + age.vrm.test + mat_age + mat_educ_binary + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ciob)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_ciob <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("sex2", "age.vrm.test", "mat_age", "mat_educ_binary2", "ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+  mutate(cohort = "ciob")
+```
+
+### ikids
+
+adjusted: sex + set + age.vrm.test + maternal age + maternal education + bmi + urine_sp_gravity
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 20, fig.width = 15}
+#### IKIDS
+
+## Add binary indicator for cotinine
+amines_vrm_ikids$COTT_binary<-ifelse(amines_vrm_ikids$COTT_comment==0,0, ifelse(amines_vrm_ikids$COTT_comment>1, 1, NA))
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "COTT_binary", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + sex + set + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ikids)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_ikids <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("sex2","set2", "age.vrm.test", "mat_age", "mat_educ2", "mat_educ3", "ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+  mutate(cohort = "ikids")
+  
+
+```
+
+## Table S3: adjuted linear regression estimates
+
+
+```{r class.output="scroll-400", warning = F, message = F}
+#### Regression results
+
+# bind cohorts
+table_s3 <- bind_rows(reg_ciob, reg_ikids, reg_pooled)
+
+# table 
+table_s3 <- table_s3 %>%
+    select(term, outcome,cohort, estimate, conf.low, conf.high) %>%
+    mutate_if(is.numeric, round, digits = 3) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label),
+           term = recode(term, !!!amines_label_log)) %>%
+    mutate(beta_ci = paste0(estimate, " (", conf.low, ", ", conf.high, ")"))  %>%
+    select(term, outcome,cohort,beta_ci) %>%
+  pivot_wider(names_from = outcome, values_from = beta_ci) %>%
+  gt(groupname_col = "term", rowname_col = "cohort") %>%
+   row_group_order(groups = c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")) %>%
+ cols_move_to_start(columns = `Shift Rate`) %>%
+  cols_label(term = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito"))) 
+
+table_s3
+```
+
+
+### Pooled 
+
+unadjusted: cohort + urine_sp_gravity
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 15, fig.width = 15}
+#### Pooled regression
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "COTT_binary", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], "  + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_pooled <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c( "urine_sp_gravity",  "(Intercept)")) %>%
+  mutate(cohort = "pooled")
+
+
+```
+
+### CIOB
+
+unadjusted
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 20, fig.width = 15}
+#### CIOB regression 
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log","COTT_binary", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ciob)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_ciob <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("urine_sp_gravity", "(Intercept)")) %>%
+  mutate(cohort = "ciob")
+```
+
+### ikids
+
+unadjusted
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 20, fig.width = 15}
+#### IKIDS
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log","COTT_binary", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " +  urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ikids)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_ikids <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("urine_sp_gravity", "(Intercept)")) %>%
+  mutate(cohort = "ikids")
+  
+
+```
+
+## Table S4: unadjusted linear regression estimates
+
+
+```{r class.output="scroll-400", warning = F, message = F}
+#### Regression results
+
+# bind cohorts
+table_s4 <- bind_rows(reg_ciob, reg_ikids, reg_pooled)
+
+# table 
+table_s4 <- table_s4 %>%
+    select(term, outcome,cohort, estimate, conf.low, conf.high) %>%
+    mutate_if(is.numeric, round, digits = 2) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label),
+           term = recode(term, !!!amines_label_log)) %>%
+    mutate(beta_ci = paste0(estimate, " (", conf.low, ", ", conf.high, ")"))  %>%
+    select(term, outcome,cohort,beta_ci) %>%
+  pivot_wider(names_from = outcome, values_from = beta_ci) %>%
+  gt(groupname_col = "term", rowname_col = "cohort") %>%
+   row_group_order(groups = c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")) %>%
+ cols_move_to_start(columns = `Shift Rate`) %>%
+  cols_label(term = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito"))) 
+
+table_s4
+```
+
+## Figure 2 & Table S5: Effect modification by sex and by set
+
+### Sex {.tabset}
+
+pooled cohort
+
+adjusted: cohort + age.vrm.test + maternal age + maternal education + bmi + urine_sp_gravity
+
+female = 135, male = 114
+
+##### Regression
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 15, fig.width = 15}
+#### Regression: effect modification by sex
+
+# Female 
+amines_vrm_f <- amines_vrm %>% filter(sex == 2)
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j],  "+ cohort + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity "))
+    model <- lm(formula = formula, data = amines_vrm_f)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_pooled_f <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("cohortIKIDS", "age.vrm.test", "mat_age", "mat_educ2", "mat_educ3","ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+  mutate(sex = "female")
+
+
+# Male
+amines_vrm_m <- amines_vrm %>% filter(sex == 1)
+
+# loop regression over predictors and outcomes
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j],  "+ cohort + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity "))
+    model <- lm(formula = formula, data = amines_vrm_m)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format 
+reg_pooled_m <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("cohortIKIDS", "age.vrm.test", "mat_age", "mat_educ2", "mat_educ3","ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+  mutate(sex = "male")
+
+reg_pooled_sex <- bind_rows(reg_pooled_f, reg_pooled_m)
+
+
+# build rectangles for shading 
+term_rects <- reg_pooled_sex %>%
+  distinct(term) %>%
+  arrange(term) %>%
+  mutate(
+    term_index = row_number(),
+    fill_color = if_else(term_index %% 2 == 0, "grey98", "grey95")
+  )
+
+reg_pooled_sex <- reg_pooled_sex %>%
+  left_join(term_rects, by = "term") 
+
+# factor
+reg_pooled_sex$outcome <- factor(reg_pooled_sex$outcome, levels = c("shift.rate.faces_b1_b2", "novelty.pref.faces_b1_b2","avg.run.duration.comb.faces_b1_b2", "trial.duration.faces_b1_b2"))
+
+reg_pooled_sex$term <- factor(reg_pooled_sex$term, levels = rev(c("sumaa_log", "ANI_log","COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")))
+
+# plot
+ggplot(reg_pooled_sex, aes(estimate, term, color = sex, shape = sex)) + 
+  geom_rect(
+  data = term_rects,
+  aes(ymin = term_index - 0.5, ymax = term_index + 0.5,
+      xmin = -Inf, xmax = Inf, fill = fill_color),
+  inherit.aes = FALSE,
+  show.legend = FALSE
+) +
+  scale_fill_identity() +
+  geom_vline(xintercept = 0, linetype = "dashed") + 
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), size = 1, linewidth = 1, position=position_dodge(width=0.5)) + 
+  facet_wrap(~outcome, scales = "free", ncol = 2, labeller = labeller(outcome = vrm_label)) +
+facetted_pos_scales(
+  x = list(
+    scale_x_continuous(limits = c(-0.06, 0.06), breaks = c(-0.06, -0.03, 0, 0.03, 0.06)),
+    scale_x_continuous(limits = c(-0.04, 0.04), breaks = c(-0.04, -0.02, 0, 0.02, 0.04)),
+    scale_x_continuous(limits = c(-1.5, 1.5), breaks = c(-1.5, -0.75, 0, 0.75, 1.5)),
+    scale_x_continuous(limits = c(-25, 25), breaks = c(-20,-10, 0, 10, 20)))) + 
+  scale_colour_manual(values = c("royalblue3", "salmon2")) +
+  labs(y = "", x = "ß (95% Confidence Interval)") +
+    scale_y_discrete(labels = amines_label_log)
+
+```
+
+##### Table S5
+```{r class.output="scroll-400", warning = F, message = F}
+#### Regression results 
+
+# table
+table_s5_a <- reg_pooled_sex %>%
+    select(term, outcome, sex, estimate, conf.low, conf.high) %>%
+    mutate_if(is.numeric, round, digits = 2) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label),
+           term = recode(term, !!!amines_label_log)) %>%
+    mutate(beta_ci = paste0(estimate, " (", conf.low, ", ", conf.high, ")"))  %>%
+    select(term, outcome,sex,beta_ci) %>%
+  pivot_wider(names_from = outcome, values_from = beta_ci) %>%
+  gt(groupname_col = "term", rowname_col = "sex") %>%
+   row_group_order(groups = c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")) %>%
+ cols_move_to_start(columns = `Shift Rate`) %>%
+  cols_label(term = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito"))) 
+
+table_s5_a
+```
+
+##### Table S5: Interaction amine * sex
+
+p-values
+
+```{r class.output="scroll-400", warning = F, message = F}
+#### Interaction by sex
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], "*sex  + age.vrm.test + cohort + mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format 
+table_s2_b <- bind_rows(models, .id = "model") %>%
+  filter(term %in% c("ANI_log:sex2", "COTT_log:sex2", "OMTD_log:sex2","CA4_log:sex2", "OANSD_log:sex2", "MDA44_log:sex2", "sumaa_log:sex2")) %>%
+    mutate_if(is.numeric, round, digits = 2) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label)) %>%
+    select(term, outcome, p.value) %>%
+  pivot_wider(names_from = term, values_from = p.value) %>%
+  gt(groupname_col = "outcome") %>%
+ tab_style_body(
+    style = cell_text(weight = "bold"),
+    fn = function(x) x <= 0.05) %>%
+  cols_label(outcome = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+
+table_s2_b
+
+```
+
+
+### Table S6: Set stratified in IKIDS only
+
+IKIDS cohort
+
+adjusted: sex+ age.vrm.test + maternal age + maternal education + bmi + urine_sp_gravity
+
+set 1 = 92, set 2 = 94
+
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 15, fig.width = 15}
+#### Regression: effect modification by set 
+
+# Set 2 
+
+# loop regression over predictors and outcomes
+amines_vrm_ikids_set2 <- amines_vrm_ikids %>% filter(set == 2)
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], "+ sex + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ikids_set2)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+# format 
+reg_ikids_set2 <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("sex2", "age.vrm.test", "mat_age","mat_educ2", "mat_educ3", "ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+  mutate(set = "2")
+
+
+# Set 1
+amines_vrm_ikids_set1 <- amines_vrm_ikids %>% filter(set == 1)
+
+# loop regression over predictors and outcomes
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j],  "+ sex + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ikids_set1)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format 
+reg_ikids_set1 <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("sex2", "age.vrm.test", "mat_age","mat_educ2", "mat_educ3","ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+  mutate(set = "1")
+
+reg_ikids_set <- bind_rows(reg_ikids_set2, reg_ikids_set1)
+```
+
+##### Table S6
+```{r class.output="scroll-400", warning = F, message = F}
+table_s6_a <- reg_ikids_set %>%
+    select(term, outcome, set, estimate, conf.low, conf.high) %>%
+    mutate_if(is.numeric, round, digits = 2) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label),
+           term = recode(term, !!!amines_label_log)) %>%
+    mutate(beta_ci = paste0(estimate, " (", conf.low, ", ", conf.high, ")"))  %>%
+    select(term, outcome,set,beta_ci) %>%
+  pivot_wider(names_from = outcome, values_from = beta_ci) %>%
+  gt(groupname_col = "term", rowname_col = "set") %>%
+   row_group_order(groups = c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")) %>%
+ cols_move_to_start(columns = `Shift Rate`) %>%
+  cols_label(term = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito"))) 
+
+table_s6_a
+```
+
+##### Table 64: Interaction amine * set
+
+p-values for interaction
+
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 15, fig.width = 15}
+#### Interaction by set 
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], "*set + sex + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ikids)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format 
+table_s6_b <- bind_rows(models, .id = "model") %>%
+  filter(term %in% c("ANI_log:set2", "COTT_log:set2", "OMTD_log:set2", "CA4_log:set2", "OANSD_log:set2", "MDA44_log:set2", "sumaa_log:set2")) %>%
+    mutate_if(is.numeric, round, digits = 2) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label)) %>%
+    select(term, outcome, p.value) %>%
+  pivot_wider(names_from = term, values_from = p.value) %>%
+  gt(groupname_col = "outcome") %>%
+ tab_style_body(
+    style = cell_text(weight = "bold"),
+    fn = function(x) x <= 0.05) %>%
+  cols_label(outcome = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+
+table_s6_b
+```
+
+
+### Sex + Set 
+
+IKIDS cohort
+
+adjusted: age.vrm.test + maternal age + maternal education + bmi + urine_sp_gravity
+
+set 1, male: 46
+
+set 1, female: 46
+
+set 2, male: 42
+
+set2, female: 52
+
+
+As there ar no significant interaction terms, we are not including this data in the manuscript.
+
+##### Interaction amine * sex * set
+```{r class.output="scroll-400", warning = F, message = F, fig.height = 15, fig.width = 15, include=F}
+#### Regression: interaction by sex and set 
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], "*sex*set + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    model <- lm(formula = formula, data = amines_vrm_ikids)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format 
+reg_ikids_sex_set <- bind_rows(models, .id = "model") %>%
+  filter(term %in% c("ANI_log:sex2", "COTT_log:sex2", "OMTD_log:sex2", "OANSD_log:sex2", "MDA44_log:sex2", "sumaa_log:sex2")) %>%
+    mutate_if(is.numeric, round, digits = 2) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label)) %>%
+    select(term, outcome, p.value) %>%
+  pivot_wider(names_from = term, values_from = p.value) %>%
+  gt(groupname_col = "outcome") %>%
+ tab_style_body(
+    style = cell_text(weight = "bold"),
+    fn = function(x) x <= 0.05) %>%
+  cols_label(outcome = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito")))
+
+
+reg_ikids_sex_set
+```
+
+## BKMR 
+
+### Models {.tabset}
+
+adjusted: mat_age + mat_educ + sex + set + ppbmi + age vrm test + cohort + urine_sp_gravity
+
+#### Shift Rate
+```{r class.output="scroll-400", warning = F, message = F}
+#### BKMR 
+
+# define mixture
+mix <- amines_vrm %>% select(ANI_log, COTT_log, OMTD_log, CA4_log, OANSD_log, MDA44_log, novelty.pref.faces_b1_b2, trial.duration.faces_b1_b2, avg.run.duration.comb.faces_b1_b2, shift.rate.faces_b1_b2, sex, age.vrm.test, cohort, mat_age, mat_educ, ppbmi, urine_sp_gravity) %>%
+  drop_na()
+
+# define exposures
+df.exp <- mix %>% dplyr::select(ANI_log, COTT_log, OMTD_log, CA4_log, OANSD_log, MDA44_log)
+
+
+# Rename exposures for easy plotting
+df.exp <- df.exp %>% rename(aniline = ANI_log, 
+                            cotinine = COTT_log, 
+                            'o/m-toluidine' = OMTD_log, # has 0 values
+                            '4-chloroaniline' = CA4_log, 
+                            "o-anisidine" = OANSD_log, 
+                            "4'4methylenedianiline" = MDA44_log)
+
+# create dummy varaibles for factor varaibles since BKMR models need to be numeric
+mix$sex<-ifelse(mix$sex==2,1,0)
+mix$cohort<-ifelse(mix$cohort==2,1,0)
+mix$hs<-ifelse(mix$mat_educ==1,1,0)
+mix$grad<-ifelse(mix$mat_educ==3,1,0)
+mix$cohort<-ifelse(mix$cohort=='CIOB',1,0)
+
+# define covariates
+df.cov <- mix %>% dplyr::select(sex, ppbmi, age.vrm.test, # cohort,
+                                urine_sp_gravity, mat_age, hs, grad)
+
+df.cov <- sapply(df.cov, as.numeric)
+
+
+set.seed(142)
+
+# run bkmr
+fit_sr <- kmbayes(y = mix$shift.rate.faces_b1_b2,
+                Z = df.exp,
+                X = df.cov,
+                iter = 1000, 
+                verbose = FALSE, 
+                varsel = TRUE,
+                family='gaussian')
+
+# extract PIPS
+pips_sr <- ExtractPIPs(fit_sr)
+pips_sr <- pips_sr %>% mutate(outcome = "Shift Rate")
+
+# overall plot
+risks.overall_sr <- OverallRiskSummaries(fit = fit_sr, y = mix$shift.rate.faces_b1_b2, Z =  df.exp, X = df.cov, 
+                                      qs = seq(0.25, 0.75, by = 0.05), 
+                                      q.fixed = 0.5, method = "exact")
+
+# univariate plot
+pred.resp.univar_sr <- PredictorResponseUnivar(fit = fit_sr)
+
+# single var plot
+risks.singvar_sr <- SingVarRiskSummaries(fit = fit_sr, y = mix$shift.rate.faces_b1_b2, Z = df.exp, X = df.cov, 
+                                      qs.diff = c(0.25, 0.75), 
+                                      q.fixed = c(0.25, 0.50, 0.75),
+                                      method = "exact")
+```
+
+#### Novelty preference
+```{r class.output="scroll-400", warning = F, message = F}
+
+# run BKMR
+set.seed(142)
+fit_np <- kmbayes(y = mix$novelty.pref.faces_b1_b2,
+                Z = df.exp,
+                X = df.cov,
+                iter = 10000, 
+                verbose = FALSE, 
+                varsel = TRUE,
+                family='gaussian')
+# extract PIPS
+pips_np <- ExtractPIPs(fit_np)
+pips_np <- pips_np %>% mutate(outcome = "Novelty Preference")
+
+# overall plot
+risks.overall_np <- OverallRiskSummaries(fit = fit_np, y = mix$novelty.pref.faces_b1_b2, Z =  df.exp, X = df.cov, 
+                                      qs = seq(0.25, 0.75, by = 0.05), 
+                                      q.fixed = 0.5, method = "exact")
+
+
+# univar plot
+pred.resp.univar_np <- PredictorResponseUnivar(fit = fit_np)
+
+# singlevar plot
+risks.singvar_np <- SingVarRiskSummaries(fit = fit_np, y = mix$novelty.pref.faces_b1_b2, Z = df.exp, X = df.cov, 
+                                      qs.diff = c(0.25, 0.75), 
+                                      q.fixed = c(0.25, 0.50, 0.75),
+                                      method = "exact")
+```
+
+#### Time to reach familiarization
+```{r  class.output="scroll-400", warning = F, message = F}
+# run BKMR
+set.seed(142)
+fit_tf <- kmbayes(y = mix$trial.duration.faces_b1_b2,
+                Z = df.exp,
+                X = df.cov,
+                iter = 10000, 
+                verbose = FALSE, 
+                varsel = TRUE,
+                family='gaussian')
+
+# extract PIPS
+pips_tf <- ExtractPIPs(fit_tf)
+pips_tf <- pips_tf %>% mutate(outcome = "Time to Reach Familiarization")
+
+
+# overall plot
+risks.overall_tf <- OverallRiskSummaries(fit = fit_tf, y = mix$trial.duration.faces_b1_b2, Z =  df.exp, X = df.cov, 
+                                      qs = seq(0.25, 0.75, by = 0.05), 
+                                      q.fixed = 0.5, method = "exact")
+
+# univar plot
+pred.resp.univar_tf <- PredictorResponseUnivar(fit = fit_tf)
+
+# singlevar plot
+risks.singvar_tf <- SingVarRiskSummaries(fit = fit_tf, y = mix$trial.duration.faces_b1_b2, Z = df.exp, X = df.cov, 
+                                      qs.diff = c(0.25, 0.75), 
+                                      q.fixed = c(0.25, 0.50, 0.75),
+                                      method = "exact")
+```
+
+#### Average run duration 
+```{r class.output="scroll-400", warning = F, message = F}
+# run BKMR 
+set.seed(142)
+fit_rd <- kmbayes(y = mix$avg.run.duration.comb.faces_b1_b2,
+                Z = df.exp,
+                X = df.cov,
+                iter = 10000, 
+                verbose = FALSE, 
+                varsel = TRUE,
+                family='gaussian')
+
+# PIPS
+pips_rd <- ExtractPIPs(fit_rd)
+pips_rd <- pips_rd %>% mutate(outcome = "Average Run Duration")
+
+# overall plot
+risks.overall_rd <- OverallRiskSummaries(fit = fit_rd, y = mix$avg.run.duration.comb.faces_b1_b2, Z =  df.exp, X = df.cov, 
+                                      qs = seq(0.25, 0.75, by = 0.05), 
+                                      q.fixed = 0.5, method = "exact")
+
+# univar plot
+pred.resp.univar_rd <- PredictorResponseUnivar(fit = fit_rd)
+
+# singelvar plot
+risks.singvar_rd <- SingVarRiskSummaries(fit = fit_rd, y = mix$avg.run.duration.comb.faces_b1_b2, Z = df.exp, X = df.cov, 
+                                      qs.diff = c(0.25, 0.75), 
+                                      q.fixed = c(0.25, 0.50, 0.75),
+                                      method = "exact")
+
+```
+
+
+## Figures S2-5
+```{r class.output="scroll-400", warning = F, message = F}
+# shift rate
+#pdf("figs2.pdf", height = 10, width = 15)
+ggplot(pred.resp.univar_sr, aes(z, est, ymin = est - 1.96*se, ymax = est + 1.96*se)) + 
+  geom_smooth(stat = "identity", color  ="grey25", size = 2) + 
+  facet_wrap(~ variable) +
+ scale_x_continuous(limits = c(-5, 10)) + 
+  labs(y = "Shift Rate", x = "Natural log transformed concentration (ng/mL)") 
+#dev.off()
+
+# novelty preference
+ggplot(pred.resp.univar_np, aes(z, est, ymin = est - 1.96*se, ymax = est + 1.96*se)) + 
+  geom_smooth(stat = "identity", color  ="grey25", size = 2) + 
+  facet_wrap(~ variable) +
+  scale_x_continuous(limits = c(-5, 10)) + 
+  scale_y_continuous(limits=c(-0.2, 0.2))+
+  labs(y = "Novelty Preference", x = "Natural log transformed concentration (ng/mL)")
+
+# average run duration 
+ggplot(pred.resp.univar_rd, aes(z, est, ymin = est - 1.96*se, ymax = est + 1.96*se)) + 
+  geom_smooth(stat = "identity", color  ="grey25", size = 2) + 
+  facet_wrap(~ variable) +
+  scale_x_continuous(limits = c(-5, 10)) + 
+  labs(y = "Average Run Duration",x = "Natural log transformed concentration (ng/mL)")
+
+# time to reach familiarization 
+ggplot(pred.resp.univar_tf, aes(z, est, ymin = est - 1.96*se, ymax = est + 1.96*se)) + 
+  geom_smooth(stat = "identity", color  ="grey25", size = 2) + 
+  facet_wrap(~ variable) +
+  scale_x_continuous(limits = c(-5, 10)) + 
+  #scale_y_continuous(breaks = c(-60,-30, 0, 30, 60)) + 
+  labs(y = "Time to Reach Familiarization", x = "Natural log transformed concentration (ng/mL)")
+
+```
+
+## Figure S6
+```{r class.output="scroll-400", warning = F, message = F}
+#### Bivariate plots 
+
+# shift rate
+# risks.singvar_sr$variable <- factor(risks.singvar_sr$variable, levels = rev(c("sumaa_log", "ANI_log","COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")))
+
+bkmr_singvar_sr <- ggplot(risks.singvar_sr, aes(variable, est, ymin = est - 1.96*sd, 
+                          ymax = est + 1.96*sd, col = q.fixed)) + 
+    geom_pointrange(position = position_dodge(width = 0.75)) + 
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+ # scale_y_continuous(limits = c(-0.06, 0.06), breaks = c(-0.06, -0.03, 0, 0.03, 0.06)) +
+  labs(title = "Shift Rate", y = "ß (95% Credible Interval)", x= " ") +
+  scale_x_discrete(labels = amines_label_log)+
+  theme(legend.position = "bottom")+
+  labs(color = "Fixed Quantile")
+
+# novelty preference
+# risks.singvar_np$variable <- factor(risks.singvar_np$variable, levels = rev(c("sumaa_log", "ANI_log","COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")))
+
+bkmr_singvar_np <- ggplot(risks.singvar_np, aes(variable, est, ymin = est - 1.96*sd, 
+                          ymax = est + 1.96*sd, col = q.fixed)) + 
+    geom_pointrange(position = position_dodge(width = 0.75)) + 
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+  scale_y_continuous(limits = c(-0.04, 0.04), breaks = c(-0.04, -0.02, 0, 0.02, 0.04)) +
+  labs(title = "Novelty Preference", y = "ß (95% Credible Interval)", x= " ") +
+    scale_x_discrete(labels = amines_label_log) +
+  theme(legend.position = "bottom")+
+  labs(color = "Fixed Quantile")
+
+
+# average run duration
+# risks.singvar_rd$variable <- factor(risks.singvar_rd$variable, levels = rev(c("sumaa_log", "ANI_log","COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")))
+
+bkmr_singvar_rd <- ggplot(risks.singvar_rd, aes(variable, est, ymin = est - 1.96*sd, 
+                          ymax = est + 1.96*sd, col = q.fixed)) + 
+  geom_pointrange(position = position_dodge(width = 0.75)) + 
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+  #scale_y_continuous(limits = c(-0.4, 0.4), breaks = c(-0.3, -0.15, 0, 0.15, 0.3)) +
+  labs(title = "Average Run Duration", y = "ß (95% Credible Interval)", x= " ") +
+   scale_x_discrete(labels = amines_label_log) +
+  theme(legend.position = "bottom")+
+  labs(color = "Fixed Quantile")
+
+
+
+# time to reach familiarization
+# risks.singvar_tf$variable <- factor(risks.singvar_tf$variable, levels = rev(c("sumaa_log", "ANI_log","COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log")))
+
+bkmr_singvar_tf <- ggplot(risks.singvar_tf, aes(variable, est, ymin = est - 1.96*sd, 
+                          ymax = est + 1.96*sd, col = q.fixed)) + 
+    geom_pointrange(position = position_dodge(width = 0.75)) + 
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+  labs(title = "Time to Reach Familiarization", y = "ß (95% Credible Interval)", x= " ") +
+ # scale_y_continuous(limits = c(-25, 25), breaks = c(-25, -12.5, 0, 12.5, 25)) +
+   scale_x_discrete(labels = amines_label_log)+
+  theme(legend.position = "bottom")+
+  labs(color = "Fixed Quantile")
+
+
+
+ggarrange(bkmr_singvar_sr, bkmr_singvar_np, bkmr_singvar_rd, bkmr_singvar_tf, ncol = 2, nrow = 2,
+          common.legend = TRUE, legend="bottom")
+
+
+```
+
+
+
+##### additional things done in response to reviewer comments that do not make into the final paper
+```{r}
+
+#### extract list of ppts to double check distributions with Lynn
+demo_full$pptid_ciob <- substr(demo_full$ppt_id, 3, nchar(demo_full$ppt_id))
+ciob<-demo_full[which(demo_full$study=='CIOB'),]
+ciob<-ciob[c(1)]
+setwd("~/Library/CloudStorage/OneDrive-Emory/Stephanie/Research/CIOB and IKIDS/CIOB and IKIDS Reserach Projects/Kaegan_Aromatic Amines and VRM in CIOB and IKIDS/manuscript draft")
+ write.csv(ciob, file = "ciob_ppt id.csv", row.names = FALSE)
+ 
+##### Reviewer 1, comment 2: check for positivity concerns by doing cross tab of categorical variables 
+
+# in full cohort
+model<-lm(novelty.pref.faces_b1_b2~ANI_log + sex + set+ cohort + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity,
+          data=amines_vrm)
+
+table(model$model$sex, model$model$set)
+table(model$model$sex, model$model$cohort)
+table(model$model$sex, model$model$mat_educ) 
+table(model$model$set, model$model$cohort) # there is a small N here of two
+table(model$model$set, model$model$mat_educ)
+table(model$model$cohort, model$model$mat_educ) # smallest N here is 6 but fine because it's >=5 
+
+
+# in CIOB
+model<-lm(novelty.pref.faces_b1_b2~ANI_log + sex + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity,
+          data=amines_vrm_ciob)
+table(model$model$sex, model$model$mat_educ) # small N here - consider collapsing into <college and >=college 
+
+
+# in IKIDS - no positivity concerns here 
+model<-lm(novelty.pref.faces_b1_b2~ANI_log + sex + set + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity,
+          data=amines_vrm)
+table(model$model$sex, model$model$set)
+table(model$model$sex, model$model$mat_educ) 
+table(model$model$set, model$model$mat_educ)
+
+
+##### Reviewer 1, comment 5: check AIC and BIC to get justify using log transformed data, also check qq plots 
+
+## Log transformed data
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+# empty results holder
+aicbic_results <- data.frame()
+
+for (out in outcomes) {
+  for (pred in predictors) {
+    
+    formula <- as.formula(
+      paste(out, "~", pred,
+            "+ sex + set + cohort + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    
+    model <- lm(formula = formula, data = amines_vrm)
+    model_aic <- AIC(model)
+    model_bic <- BIC(model)
+    
+    aicbic_results <- rbind(aicbic_results,
+                            data.frame(
+                              predictor = pred,
+                              outcome = out,
+                              AIC = model_aic,
+                              BIC = model_bic))
+  }
+}
+
+# combine AIC and BIC into a single cell
+aicbic_results <- aicbic_results %>%
+  mutate(AIC_BIC = paste0(round(AIC, 1), " / ", round(BIC, 1)))
+
+# reshape to wide format
+aicbic_wide_log <- aicbic_results %>%
+  select(predictor, outcome, AIC_BIC) %>%
+  pivot_wider(
+    names_from = outcome,
+    values_from = AIC_BIC
+  )
+
+aicbic_wide_log
+
+
+## Log transformed data
+predictors <- c("ANI", "COTT", "OMTD", "CA4", "OANSD", "MDA44", "sumaa")
+
+# empty results holder
+aicbic_results <- data.frame()
+
+for (out in outcomes) {
+  for (pred in predictors) {
+    
+    formula <- as.formula(
+      paste(out, "~", pred,
+            "+ sex + set + cohort + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+    
+    model <- lm(formula = formula, data = amines_vrm)
+    model_aic <- AIC(model)
+    model_bic <- BIC(model)
+    
+    aicbic_results <- rbind(aicbic_results,
+                            data.frame(
+                              predictor = pred,
+                              outcome = out,
+                              AIC = model_aic,
+                              BIC = model_bic))
+  }
+}
+
+# combine AIC and BIC into a single cell
+aicbic_results <- aicbic_results %>%
+  mutate(AIC_BIC = paste0(round(AIC, 1), " / ", round(BIC, 1)))
+
+# reshape to wide format
+aicbic_wide_not_log <- aicbic_results %>%
+  select(predictor, outcome, AIC_BIC) %>%
+  pivot_wider(
+    names_from = outcome,
+    values_from = AIC_BIC
+  )
+
+aicbic_wide_not_log
+
+## output qq plots 
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+make_qqplots <- function(data, predictors, outcomes) {
+  
+  plots <- list()
+  
+  for (out in outcomes) {
+    for (pred in predictors) {
+      
+      # model formula
+      formula <- as.formula(
+        paste(out, "~", pred,
+              "+ sex + set + cohort + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity")
+      )
+      
+      # fit model
+      model <- lm(formula, data = amines_vrm)
+      
+      # plot title
+      plot_name <- paste0("QQplot_", out, "_vs_", pred)
+      
+      # create QQ plot object
+      p <- ggplot(data.frame(resid = residuals(model)), aes(sample = resid)) +
+        stat_qq() +
+        stat_qq_line() +
+        ggtitle(paste("QQ Plot:", out, "vs", pred)) +
+        theme_bw()
+      
+      # store in list
+      plots[[plot_name]] <- p
+    }
+  }
+  
+  return(plots)
+}
+
+qqplots <- make_qqplots(
+  data = amines_vrm,
+  predictors = predictors,
+  outcomes = outcomes
+)
+qqplots
+
+predictors <- c("ANI", "COTT", "OMTD", "CA4", "OANSD", "MDA44", "sumaa")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+make_qqplots <- function(data, predictors, outcomes) {
+  
+  plots <- list()
+  
+  for (out in outcomes) {
+    for (pred in predictors) {
+      
+      # model formula
+      formula <- as.formula(
+        paste(out, "~", pred,
+              "+ sex + set + cohort + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity")
+      )
+      
+      # fit model
+      model <- lm(formula, data = amines_vrm)
+      
+      # plot title
+      plot_name <- paste0("QQplot_", out, "_vs_", pred)
+      
+      # create QQ plot object
+      p <- ggplot(data.frame(resid = residuals(model)), aes(sample = resid)) +
+        stat_qq() +
+        stat_qq_line() +
+        ggtitle(paste("QQ Plot:", out, "vs", pred)) +
+        theme_bw()
+      
+      # store in list
+      plots[[plot_name]] <- p
+    }
+  }
+  
+  return(plots)
+}
+
+qqplots <- make_qqplots(
+  data = amines_vrm,
+  predictors = predictors,
+  outcomes = outcomes
+)
+qqplots
+
+
+
+
+#### Reviewer 2, comment 6: additional adjustment for birth year
+# create birth year varaible 
+amines_vrm$birth_year <- substr(amines_vrm$infant_dob, 1, 4)
+
+# loop regression over predictors and outcomes
+predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+outcomes <- c("novelty.pref.faces_b1_b2", "trial.duration.faces_b1_b2", "avg.run.duration.comb.faces_b1_b2", "shift.rate.faces_b1_b2")
+
+models <- list()
+for (i in 1:length(outcomes)) {
+  for (j in 1:length(predictors)) {
+    model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+    formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + sex + cohort + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity + birth_year"))
+    model <- lm(formula = formula, data = amines_vrm)
+    n  <- nobs(model)
+    models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+      mutate(outcome = outcomes[i], N = n)
+  }
+}
+
+# format
+reg_pooled <- bind_rows(models, .id = "model") %>%
+  filter(!term %in% c("sex2", "cohort2","age.vrm.test", "mat_age", "mat_educ2", "mat_educ3","ppbmi","urine_sp_gravity",  "(Intercept)","birth_year2016","birth_year2015","birth_year2017","birth_year2018","birth_year2019")) %>%
+  mutate(cohort = "pooled")
+
+# table 
+table_sx <- reg_pooled %>%
+    select(term, outcome, estimate, conf.low, conf.high) %>%
+    mutate_if(is.numeric, round, digits = 2) %>%
+    mutate(outcome = recode(outcome, !!!vrm_label),
+           term = recode(term, !!!amines_label_log)) %>%
+    mutate(beta_ci = paste0(estimate, " (", conf.low, ", ", conf.high, ")"))  %>%
+    select(term, outcome,beta_ci) %>%
+  pivot_wider(names_from = outcome, values_from = beta_ci) %>%
+  gt(groupname_col = "term") %>%
+   row_group_order(groups = c("∑ AA", "analine", "cotinine", "o/m-toluidine", "4-chloroaniline", "o-anisidine", "4,4'methylenedianiline")) %>%
+ cols_move_to_start(columns = `Shift Rate`) %>%
+  cols_label(term = "") %>%
+  gt_theme_538() %>%
+  opt_table_font(font = list(google_font(name = "Nunito"))) 
+
+table_sx
+
+
+
+```
+
+# ```{r  eval = F, warning = F, message = F, fig.height = 15, fig.width = 15}
+# # pooled
+# ### loop regression over predictors and outcomes
+# predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+# outcomes <- c("novelty.pref.faces", "trial.duration.faces", "avg.run.duration.comb.faces", "shift.rate.faces")
+# 
+# models <- list()
+# for (i in 1:length(outcomes)) {
+#   for (j in 1:length(predictors)) {
+#     model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+#     formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + sex + cohort + age.vrm.test +  mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+#     model <- lm(formula = formula, data = amines_vrm)
+#     n  <- nobs(model)
+#     models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+#       mutate(outcome = outcomes[i], N = n)
+#   }
+# }
+# reg_pooled <- bind_rows(models, .id = "model") %>%
+#   filter(!term %in% c("sex2","cohort2","age.vrm.test", "mat_age", "mat_educ2", "mat_educ3","ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+#   mutate(cohort = "pooled")
+# 
+# 
+# # build rectangles for shading 
+# term_rects <- reg_pooled %>%
+#   distinct(term) %>%
+#   arrange(term) %>%
+#   mutate(
+#     term_index = row_number(),
+#     fill_color = if_else(term_index %% 2 == 0, "grey98", "grey95")
+#   )
+# 
+# reg_pooled <- reg_pooled %>%
+#   left_join(term_rects, by = "term") 
+# 
+# reg_pooled$outcome <- factor(reg_pooled$outcome, levels = c("shift.rate.faces", "novelty.pref.faces","avg.run.duration.comb.faces", "trial.duration.faces"))
+# 
+# ```
+# 
+# ```{r  eval = F, warning = F, message = F, fig.height = 20, fig.width = 15}
+# # ciob
+# ### loop regression over predictors and outcomes
+# predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+# outcomes <- c("novelty.pref.faces", "trial.duration.faces", "avg.run.duration.comb.faces", "shift.rate.faces")
+# 
+# models <- list()
+# for (i in 1:length(outcomes)) {
+#   for (j in 1:length(predictors)) {
+#     model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+#     formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + sex + age.vrm.test + mat_age + mat_educ + ppbmi + urine_sp_gravity"))
+#     model <- lm(formula = formula, data = amines_vrm_ciob)
+#     n  <- nobs(model)
+#     models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+#       mutate(outcome = outcomes[i], N = n)
+#   }
+# }
+# reg_ciob <- bind_rows(models, .id = "model") %>%
+#   filter(!term %in% c("sex2", "age.vrm.test", "mat_age", "mat_educ2", "mat_educ3", "ppbmi","urine_sp_gravity", "(Intercept)")) %>%
+#   mutate(cohort = "ciob")
+# 
+# # build rectangles for shading 
+# term_rects <- reg_ciob %>%
+#   distinct(term) %>%
+#   arrange(term) %>%
+#   mutate(
+#     term_index = row_number(),
+#     fill_color = if_else(term_index %% 2 == 0, "grey98", "grey95")
+#   )
+# 
+# reg_ciob <- reg_ciob %>%
+#   left_join(term_rects, by = "term") 
+# 
+# reg_ciob$outcome <- factor(reg_ciob$outcome, levels = c("shift.rate.faces", "novelty.pref.faces","avg.run.duration.comb.faces", "trial.duration.faces"))
+# 
+# 
+# ```
+# 
+# ```{r eval = F, warning = F, message = F, fig.height = 20, fig.width = 15}
+# # ikids
+# ### loop regression over predictors and outcomes
+# predictors <- c("ANI_log", "COTT_log", "OMTD_log", "CA4_log", "OANSD_log", "MDA44_log", "sumaa_log")
+# outcomes <- c("novelty.pref.faces", "trial.duration.faces", "avg.run.duration.comb.faces", "shift.rate.faces")
+# 
+# models <- list()
+# for (i in 1:length(outcomes)) {
+#   for (j in 1:length(predictors)) {
+#     model_name <- paste0(outcomes[i], " ~ ", predictors[j])
+#     formula <- as.formula(paste(outcomes[i], " ~ ", predictors[j], " + sex + set + age.vrm.test + mat_age + mat_educ + ppbmi"))
+#     model <- lm(formula = formula, data = amines_vrm_ikids)
+#     n  <- nobs(model)
+#     models[[model_name]] <- tidy(model, conf.int = TRUE) %>%
+#       mutate(outcome = outcomes[i], N = n)
+#   }
+# }
+# reg_ikids <- bind_rows(models, .id = "model") %>%
+#   filter(!term %in% c("sex2","set2", "age.vrm.test", "mat_age", "mat_educ2", "mat_educ3", "ppbmi", "(Intercept)")) %>%
+#   mutate(cohort = "ikids")
+# 
+# # build rectangles for shading 
+# term_rects <- reg_ikids %>%
+#   distinct(term) %>%
+#   arrange(term) %>%
+#   mutate(
+#     term_index = row_number(),
+#     fill_color = if_else(term_index %% 2 == 0, "grey98", "grey95")
+#   )
+# 
+# reg_ikids <- reg_ikids %>%
+#   left_join(term_rects, by = "term") 
+#     
+# reg_ikids$outcome <- factor(reg_ikids$outcome, levels = c("shift.rate.faces", "novelty.pref.faces","avg.run.duration.comb.faces", "trial.duration.faces"))
+# 
+# ```
+
+
+<!-- ## Figure 3 -->
+<!-- ```{r class.output="scroll-400", warning = F, message = F} -->
+<!-- #### Cumulative plots -->
+
+<!-- # shift rate -->
+<!-- bkmr_cumulative_sr <- ggplot(risks.overall_sr, aes(quantile, est, ymin = est - 1.96*sd, ymax = est + 1.96*sd)) + -->
+<!--     geom_pointrange(color = "grey25", size = 0.75, linewidth = 0.75) + -->
+<!--     geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") + -->
+<!--     scale_y_continuous(limits = c(-0.08, 0.08), breaks = c(-0.08,-0.04, 0, 0.04, 0.08)) + -->
+<!--     labs(title = "Shift Rate", y = "ß (95% Credible Interval)", x = "Quantile") -->
+
+
+<!-- # novelty preference -->
+<!-- bkmr_cumulative_np <- ggplot(risks.overall_np, aes(quantile, est, ymin = est - 1.96*sd, ymax = est + 1.96*sd)) + -->
+<!--     geom_pointrange(color = "grey25", size = 0.75, linewidth = 0.75) + -->
+<!--     geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") + -->
+<!--   scale_y_continuous(limits = c(-0.02, 0.02), breaks = c(-0.02, -0.01, 0, 0.01, 0.02)) + -->
+<!--   labs(title = "Novelty Preference", y = "ß (95% Credible Interval)", x = "Quantile") -->
+
+<!-- # average run duration -->
+<!-- bkmr_cumulative_rd <- ggplot(risks.overall_rd, aes(quantile, est, ymin = est - 1.96*sd, ymax = est + 1.96*sd)) + -->
+<!--     geom_pointrange(color = "grey25", size = 0.75, linewidth = 0.75) + -->
+<!--     geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") + -->
+<!--     scale_y_continuous(limits = c(-0.60, 0.60), breaks = c(-0.6, -0.3, 0, 0.3, 0.6)) + -->
+<!--   labs(title = "Average Run Duration", y = "ß (95% Credible Interval)", x = "Quantile") -->
+
+<!-- # time to reach familiarization -->
+<!-- bkmr_cumulative_tf <- ggplot(risks.overall_tf, aes(quantile, est, ymin = est - 1.96*sd, ymax = est + 1.96*sd)) + -->
+<!--     geom_pointrange(color = "grey25", size = 0.75, linewidth = 0.75) + -->
+<!--     geom_hline(yintercept = 0, linetype = "dashed", color = "grey25", x = "Quantile") + -->
+<!--   scale_y_continuous(limits = c(-20.00, 20.00), breaks = c(-20.00, -10, 0.00, 10, 20.00)) + -->
+<!--   labs(title = "Time to Reach Familiarization", y = "ß (95% Credible Interval)", x= "Quantile") -->
+
+<!-- plot_grid(bkmr_cumulative_sr, bkmr_cumulative_np, bkmr_cumulative_rd, bkmr_cumulative_tf, ncol = 2, nrow = 2, align = "v") -->
+
+<!-- ``` -->
+
+
+<!-- ## Table S7: PIPs -->
+<!-- ```{r class.output="scroll-400", warning = F, message = F} -->
+<!-- #### BKMR PIPS -->
+
+<!-- # combine results -->
+<!-- bkmr <- rbind(pips_sr, pips_np, pips_tf, pips_rd) -->
+
+<!-- # table -->
+<!-- table_s7 <- bkmr %>% -->
+<!--   mutate_if(is.numeric, round, digits = 2) %>% -->
+<!--   mutate(variable = recode(variable, !!!amines_label_log)) %>% -->
+<!--   pivot_wider(names_from = outcome, values_from = PIP) %>% -->
+<!--   gt(groupname_col = "outcome") %>% -->
+<!--   cols_label(variable = "") %>% -->
+<!--   gt_theme_538() %>% -->
+<!--   opt_table_font(font = list(google_font(name = "Nunito"))) -->
+
+<!-- table_s7 -->
+<!-- ``` -->
